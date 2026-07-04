@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { app } from '$lib/stores/app.svelte';
-	import { ingredients, getIngredient } from '$lib/data/ingredients';
 	import { Card, Input, Badge } from '$lib/components/ui';
 	import { Search, Plus, Minus, Trash2, Refrigerator } from '@lucide/svelte';
 
@@ -9,7 +8,7 @@
 	const pantrySet = $derived(new Set(app.pantryIds));
 	const results = $derived(
 		search.trim()
-			? ingredients
+			? app.ingredients
 					.filter(
 						(i) =>
 							i.name.toLowerCase().includes(search.toLowerCase()) && !pantrySet.has(i.id)
@@ -19,7 +18,7 @@
 	);
 
 	function add(id: string) {
-		const ing = getIngredient(id);
+		const ing = app.getIngredient(id);
 		if (!ing) return;
 		const defaultAmount = ing.unit === 'pcs' || ing.unit === 'clove' ? 6 : 250;
 		app.addPantryItem({ ingredientId: id, amount: defaultAmount, unit: ing.unit });
@@ -73,7 +72,7 @@
 	{:else}
 		<div class="space-y-2">
 			{#each app.pantry as item (item.ingredientId)}
-				{@const ing = getIngredient(item.ingredientId)}
+				{@const ing = app.getIngredient(item.ingredientId)}
 				{#if ing}
 					<Card padded={false} class="flex items-center gap-3 p-3">
 						<div class="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-lg">

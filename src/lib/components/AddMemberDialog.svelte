@@ -9,8 +9,8 @@
 	import type { HouseholdMember, Sex, ActivityLevel } from '$lib/types';
 	import { UserPlus } from '@lucide/svelte';
 
-	type Props = { open?: boolean };
-	let { open = $bindable(false) }: Props = $props();
+	type Props = { open?: boolean; editMember?: HouseholdMember | null };
+	let { open = $bindable(false), editMember = null }: Props = $props();
 
 	const colors = [
 		'oklch(0.65 0.16 25)',
@@ -62,10 +62,29 @@
 		eatsEveryMeal = true;
 	}
 
+	function loadFromMember(m: HouseholdMember) {
+		name = m.name;
+		relation = m.relation;
+		age = m.age;
+		sex = m.sex;
+		height = m.height;
+		weight = m.weight;
+		activity = m.activity;
+		goals = [...m.goals];
+		diet = [m.diet];
+		allergies = [...m.allergies];
+		avoid = m.avoid.join(', ');
+		eatsEveryMeal = m.eatsEveryMeal;
+	}
+
+	$effect(() => {
+		if (open && editMember) loadFromMember(editMember);
+		else if (open && !editMember) reset();
+	});
+
 	function save() {
 		if (!name.trim()) return;
-		const member: HouseholdMember = {
-			id: `member-${Date.now()}`,
+		const data = {
 			name: name.trim(),
 			relation,
 			age: age ?? 30,
@@ -77,11 +96,20 @@
 			diet: diet[0] ?? 'Omnivore',
 			allergies,
 			avoid: avoid ? avoid.split(',').map((s) => s.trim()) : [],
-			eatsEveryMeal,
-			enabled: true,
-			avatarColor: colors[app.household.length % colors.length]
+			eatsEveryMeal
 		};
-		app.addMember(member);
+		if (editMember) {
+			app.updateMember(editMember.id, data);
+		} else {
+			const member: HouseholdMember = {
+				id: `member-${Date.now()}`,
+				...data,
+				enabled: true,
+				disabledForWeek: null,
+				avatarColor: colors[app.household.length % colors.length]
+			};
+			app.addMember(member);
+		}
 		reset();
 		open = false;
 	}
@@ -92,7 +120,9 @@
 		<div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
 			<UserPlus class="h-5 w-5" />
 		</div>
-		<h2 class="text-xl font-semibold text-foreground">Add household member</h2>
+		<h2 class="text-xl font-semibold text-foreground">
+			{editMember ? 'Edit household member' : 'Add household member'}
+		</h2>
 	</div>
 
 	<div class="mt-5 space-y-4">
@@ -179,6 +209,8 @@
 
 	<div class="mt-6 flex gap-2">
 		<Button variant="secondary" class="flex-1" onclick={() => (open = false)}>Cancel</Button>
-		<Button class="flex-1" onclick={save} disabled={!name.trim()}>Add member</Button>
+		<Button class="flex-1" onclick={save} disabled={!name.trim()}>
+			{editMember ? 'Save changes' : 'Add member'}
+		</Button>
 	</div>
 </Dialog>

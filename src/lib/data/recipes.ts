@@ -1,6 +1,8 @@
+// SEED SOURCE ONLY — do not import at runtime. Used by scripts/seed-catalog.ts.
 import type { Recipe } from '$lib/types';
+import { extraRecipes } from './recipes-extra';
 
-export const recipes: Recipe[] = [
+const baseRecipes: Recipe[] = [
 	{
 		id: 'overnight-oats',
 		title: 'Blueberry Almond Overnight Oats',
@@ -393,6 +395,8 @@ export const recipes: Recipe[] = [
 		mealPrepTips: ['Makes about 12 bites', 'Keeps 1 week refrigerated or freeze for longer']
 	}
 ];
+
+export const recipes: Recipe[] = [...baseRecipes, ...extraRecipes];
 
 export const recipeMap: Record<string, Recipe> = Object.fromEntries(
 	recipes.map((r) => [r.id, r])

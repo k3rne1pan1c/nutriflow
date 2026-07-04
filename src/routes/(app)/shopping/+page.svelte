@@ -1,11 +1,9 @@
 <script lang="ts">
 	import { app } from '$lib/stores/app.svelte';
-	import { buildShoppingList, groupByCategory } from '$lib/data/shoppingList';
-	import { calculateLineCost } from '$lib/pricing';
+	import { buildShoppingList, groupByCategory, itemsToBuy } from '$lib/shoppingList';
 	import ShoppingItemRow from '$lib/components/ShoppingItem.svelte';
 	import { Card, Badge } from '$lib/components/ui';
-	import { Users, Sparkles, Tag } from '@lucide/svelte';
-	import { formatCurrency } from '$lib/utils';
+	import { Users, Sparkles } from '@lucide/svelte';
 
 	const categoryEmoji: Record<string, string> = {
 		Vegetables: '🥬',
@@ -17,27 +15,23 @@
 		Other: '🫒'
 	};
 
-	const items = $derived(
-		buildShoppingList(app.activeMembers, app.pantryIds).map((i) => ({
+	const allItems = $derived(
+		buildShoppingList(
+			app.activeMembers,
+			app.pantry,
+			app.plan,
+			app.recipeMap,
+			app.ingredientMap,
+			{ includeCovered: true }
+		).map((i) => ({
 			...i,
 			checked: app.isShoppingChecked(i.id)
 		}))
 	);
+	const items = $derived(itemsToBuy(allItems));
+	const covered = $derived(allItems.filter((i) => i.fullyCoveredByPantry));
 	const groups = $derived(groupByCategory(items));
-	const toBuy = $derived(items.filter((i) => !i.inPantry));
-	const checkedCount = $derived(toBuy.filter((i) => i.checked).length);
-	const budget = $derived(app.profile.weeklyBudget || 120);
-
-	function lineCost(item: (typeof items)[number]) {
-		const price = app.getIngredientPrice(item.ingredientId);
-		if (!price) return null;
-		return calculateLineCost(item.amount, item.unit, price.price, price.perUnit);
-	}
-
-	const pricedItems = $derived(toBuy.filter((i) => lineCost(i) !== null));
-	const total = $derived(pricedItems.reduce((sum, i) => sum + (lineCost(i) ?? 0), 0));
-	const hasAnyPrices = $derived(pricedItems.length > 0);
-	const allPriced = $derived(pricedItems.length === toBuy.length && toBuy.length > 0);
+	const checkedCount = $derived(items.filter((i) => i.checked).length);
 </script>
 
 <div class="px-5 pt-6">
@@ -45,56 +39,21 @@
 		<h1 class="text-2xl font-semibold tracking-tight text-foreground">Shopping list</h1>
 		<p class="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
 			<Users class="h-3.5 w-3.5" />
-			{app.activePeopleLabel} · {toBuy.length} items
+			{app.activePeopleLabel} · {items.length} items to buy
 		</p>
 	</header>
 
 	<Card class="mt-5">
-		{#if hasAnyPrices}
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm text-muted-foreground">Your estimated total</p>
-					<p class="text-2xl font-semibold text-foreground">{formatCurrency(total)}</p>
-				</div>
-				<div class="text-right">
-					<p class="text-sm text-muted-foreground">Weekly budget</p>
-					<p class="text-sm font-medium {total <= budget ? 'text-success' : 'text-destructive'}">
-						{total <= budget ? formatCurrency(budget - total) + ' left' : formatCurrency(total - budget) + ' over'}
-					</p>
-				</div>
-			</div>
-			<div class="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
-				<div
-					class="h-full rounded-full bg-primary transition-all duration-500"
-					style="width:{Math.min((total / budget) * 100, 100)}%"
-				></div>
-			</div>
-			{#if !allPriced}
-				<p class="mt-2 text-xs text-muted-foreground">
-					Based on {pricedItems.length} of {toBuy.length} items with your local prices added.
-				</p>
-			{/if}
-		{:else}
-			<div class="flex items-start gap-3">
-				<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-					<Tag class="h-5 w-5" />
-				</div>
-				<div>
-					<p class="font-medium text-foreground">Add your local prices</p>
-					<p class="mt-1 text-sm text-muted-foreground">
-						Tap <span class="font-medium">Add price</span> on any item — per kg, per liter, or per piece — to
-						track what this week actually costs where you shop.
-					</p>
-				</div>
-			</div>
-		{/if}
-		<p class="mt-3 text-xs text-muted-foreground">{checkedCount} of {toBuy.length} items checked off</p>
+		<p class="text-sm text-muted-foreground">{checkedCount} of {items.length} items checked off</p>
+		<p class="mt-1 text-xs text-muted-foreground">
+			Optional: tap <span class="font-medium">Add price</span> on any item to note what you usually pay locally.
+		</p>
 	</Card>
 
 	<div class="mt-4 flex items-center gap-2 rounded-2xl bg-success/8 px-4 py-3">
 		<Sparkles class="h-4 w-4 shrink-0 text-success" />
 		<p class="text-xs text-foreground">
-			Quantities are scaled to your active household and pantry staples are excluded to avoid waste.
+			Quantities are scaled to your household. Pantry stock is deducted to reduce waste.
 		</p>
 	</div>
 
@@ -117,10 +76,16 @@
 		{/each}
 	</div>
 
-	{#if hasAnyPrices}
-		<div class="mt-6 flex items-center justify-between rounded-2xl bg-primary px-5 py-4 text-primary-foreground">
-			<span class="font-medium">Total with your prices</span>
-			<span class="text-xl font-semibold">{formatCurrency(total)}</span>
-		</div>
+	{#if covered.length > 0}
+		<details class="mt-5">
+			<summary class="cursor-pointer text-sm font-medium text-muted-foreground">
+				Covered by pantry ({covered.length})
+			</summary>
+			<Card class="mt-2 divide-y divide-border/70 py-1">
+				{#each covered as item (item.id)}
+					<ShoppingItemRow {item} />
+				{/each}
+			</Card>
+		</details>
 	{/if}
 </div>

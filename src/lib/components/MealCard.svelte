@@ -11,9 +11,10 @@
 		recipe: Recipe;
 		onReplace?: () => void;
 		compact?: boolean;
+		reason?: string;
 	};
 
-	let { recipe, onReplace, compact = false }: Props = $props();
+	let { recipe, onReplace, compact = false, reason }: Props = $props();
 	const totalTime = $derived(recipe.prepTime + recipe.cookTime);
 	const isFav = $derived(app.isFavorite(recipe.id));
 </script>
@@ -55,6 +56,10 @@
 					><Dumbbell class="h-3.5 w-3.5" />{recipe.nutrition.protein}g</span
 				>
 			</div>
+
+			{#if reason}
+				<p class="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{reason}</p>
+			{/if}
 
 			{#if !compact}
 				<div class="mt-3 flex items-center gap-2">

@@ -1,3 +1,4 @@
+// SEED SOURCE ONLY — do not import at runtime. Used by scripts/seed-catalog.ts.
 import type { Ingredient } from '$lib/types';
 
 export const ingredients: Ingredient[] = [

@@ -10,6 +10,8 @@ export const mealMeta: Record<MealType, { label: string; emoji: string; icon: Lu
 
 export const mealOrder: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 
+export const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
 export const difficultyColor: Record<Difficulty, string> = {
 	Easy: 'text-success',
 	Medium: 'text-warning',

@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { getIngredient } from '$lib/data/ingredients';
-	import { Badge } from '$lib/components/ui';
 	import { app } from '$lib/stores/app.svelte';
+	import { Badge } from '$lib/components/ui';
 
 	type Props = {
 		ingredientId: string;
@@ -10,7 +9,7 @@
 	};
 
 	let { ingredientId, amount, unit }: Props = $props();
-	const ingredient = $derived(getIngredient(ingredientId));
+	const ingredient = $derived(app.getIngredient(ingredientId));
 	const inPantry = $derived(app.pantryIds.includes(ingredientId));
 </script>
 

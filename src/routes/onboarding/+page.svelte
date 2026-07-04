@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { app } from '$lib/stores/app.svelte';
+	import { pantryFromOnboardingIds, primaryMemberFromProfile } from '$lib/supabase/userData';
 	import { Button, Input, Label, Slider, Textarea, Card, Badge } from '$lib/components/ui';
 	import ProgressStepper from '$lib/components/ProgressStepper.svelte';
 	import MultiSelect from '$lib/components/MultiSelect.svelte';
 	import Chip from '$lib/components/Chip.svelte';
-	import { ingredients } from '$lib/data/ingredients';
 	import {
 		goalOptions,
 		dietOptions,
@@ -14,7 +15,6 @@
 		experienceOptions
 	} from '$lib/meta';
 	import { ArrowLeft, ArrowRight, Check, Search, Leaf, TrendingDown, TrendingUp, Minus } from '@lucide/svelte';
-	import { formatCurrency } from '$lib/utils';
 	import { recommendTargetWeight } from '$lib/bodyMetrics';
 	import { getAllergyOptionsForDiet, stripNonVeganAllergies, buildNutrientGuidance } from '$lib/dietGuidance';
 	import { getRecommendedCuisines } from '$lib/cuisineGuidance';
@@ -39,6 +39,18 @@
 	let direction = $state(1);
 	let pantrySearch = $state('');
 	let targetManual = $state(false);
+	let saving = $state(false);
+	let saveError = $state('');
+
+	const isEdit = $derived($page.url.searchParams.get('edit') === '1');
+	const initialStep = $derived(Number($page.url.searchParams.get('step') ?? '0'));
+	const editStepOnly = $derived(isEdit && $page.url.searchParams.has('step'));
+	
+	$effect(() => {
+		if (initialStep > 0 && initialStep < steps.length) {
+			step = initialStep;
+		}
+	});
 
 	const targetRecommendation = $derived(
 		recommendTargetWeight(profile.height, profile.weight, profile.sex)
@@ -56,7 +68,7 @@
 	const sexOptions = ['Male', 'Female', 'Other'];
 
 	const filteredIngredients = $derived(
-		ingredients.filter((i) => i.name.toLowerCase().includes(pantrySearch.toLowerCase()))
+		app.ingredients.filter((i) => i.name.toLowerCase().includes(pantrySearch.toLowerCase()))
 	);
 
 	const allergyOptionsForDiet = $derived(getAllergyOptionsForDiet(profile.diet));
@@ -82,12 +94,50 @@
 		if (step === 3 && profile.diet === 'Vegan') {
 			profile.allergies = stripNonVeganAllergies(profile.allergies);
 		}
+		if (editStepOnly || step === steps.length - 1) {
+			void finish();
+			return;
+		}
 		if (step < steps.length - 1) {
 			direction = 1;
 			step += 1;
-		} else {
-			app.onboarded = true;
-			goto('/dashboard');
+		}
+	}
+
+	async function finish() {
+		saveError = '';
+		if (!app.isPersisted) {
+			saveError = 'Still connecting… wait a moment and try again.';
+			return;
+		}
+		saving = true;
+		try {
+			Object.assign(app.profile, profile);
+			if (isEdit) {
+				if (editStepOnly) {
+					await app.saveProfileEdit({
+						updatePrimary: step === 0,
+						pantryItems:
+							step === 7
+								? pantryFromOnboardingIds(profile.pantry, app.ingredientMap)
+								: undefined
+					});
+				} else {
+					const pantryItems = pantryFromOnboardingIds(profile.pantry, app.ingredientMap);
+					const primary = primaryMemberFromProfile(profile);
+					await app.savePreferences(pantryItems, [primary]);
+				}
+				await goto('/profile');
+			} else {
+				const pantryItems = pantryFromOnboardingIds(profile.pantry, app.ingredientMap);
+				const primary = primaryMemberFromProfile(profile);
+				await app.completeOnboarding(pantryItems, [primary]);
+				await goto('/dashboard');
+			}
+		} catch (e) {
+			saveError = e instanceof Error ? e.message : 'Could not save your preferences';
+		} finally {
+			saving = false;
 		}
 	}
 
@@ -95,6 +145,8 @@
 		if (step > 0) {
 			direction = -1;
 			step -= 1;
+		} else if (isEdit) {
+			goto('/profile');
 		} else {
 			goto('/');
 		}
@@ -118,8 +170,12 @@
 			>
 				<ArrowLeft class="h-5 w-5" />
 			</button>
-			<ProgressStepper current={step} total={steps.length} />
-			<span class="ml-auto text-sm font-medium text-muted-foreground">{step + 1}/{steps.length}</span>
+			<ProgressStepper current={editStepOnly ? 0 : step} total={editStepOnly ? 1 : steps.length} />
+			{#if editStepOnly}
+				<span class="ml-auto text-sm font-medium text-muted-foreground">Edit</span>
+			{:else}
+				<span class="ml-auto text-sm font-medium text-muted-foreground">{step + 1}/{steps.length}</span>
+			{/if}
 		</div>
 	</header>
 
@@ -127,7 +183,15 @@
 	<main class="mx-auto w-full max-w-md flex-1 px-5 pb-32 pt-2">
 		{#key step}
 			<div in:fly={{ x: direction * 24, duration: 280, delay: 60 }}>
-				<h1 class="text-2xl font-semibold tracking-tight text-foreground">{steps[step]}</h1>
+				<h1 class="text-2xl font-semibold tracking-tight text-foreground">
+					{#if editStepOnly}
+						Edit: {steps[step]}
+					{:else if isEdit && step === 0}
+						Edit preferences
+					{:else}
+						{steps[step]}
+					{/if}
+				</h1>
 
 				{#if step === 0}
 					<p class="mt-1 text-sm text-muted-foreground">Let's personalize your nutrition.</p>
@@ -358,13 +422,6 @@
 							</div>
 							<Slider bind:value={profile.maxCookingTime} min={10} max={60} step={5} class="mt-2" />
 						</div>
-						<div>
-							<div class="flex items-baseline justify-between">
-								<Label>Weekly budget</Label>
-								<span class="text-sm font-semibold text-primary">{formatCurrency(profile.weeklyBudget)}</span>
-							</div>
-							<Slider bind:value={profile.weeklyBudget} min={40} max={300} step={10} class="mt-2" />
-						</div>
 
 						<div>
 							<Label>Pantry staples <span class="font-normal text-muted-foreground">· always in stock</span></Label>
@@ -392,9 +449,20 @@
 	<!-- Footer -->
 	<footer class="fixed inset-x-0 bottom-0 z-10 border-t border-border/60 bg-background/90 px-5 py-4 backdrop-blur-lg safe-bottom">
 		<div class="mx-auto max-w-md">
-			<Button onclick={next} size="lg" class="w-full gap-2">
-				{#if step === steps.length - 1}
-					<Leaf class="h-5 w-5" /> Finish setup
+			{#if saveError}
+				<p class="mb-2 text-center text-sm text-destructive">{saveError}</p>
+			{/if}
+			<Button onclick={next} size="lg" class="w-full gap-2" disabled={saving}>
+				{#if saving}
+					Saving…
+				{:else if editStepOnly}
+					<Check class="h-5 w-5" /> Save changes
+				{:else if step === steps.length - 1}
+					{#if isEdit}
+						<Check class="h-5 w-5" /> Save preferences
+					{:else}
+						<Leaf class="h-5 w-5" /> Finish setup
+					{/if}
 				{:else}
 					Continue <ArrowRight class="h-5 w-5" />
 				{/if}

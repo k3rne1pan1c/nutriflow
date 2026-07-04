@@ -36,12 +36,24 @@ export interface RecipeIngredient {
 export type Difficulty = 'Easy' | 'Medium' | 'Hard';
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
+export interface Micronutrients {
+	omega3Mg?: number;
+	calciumMg?: number;
+	ironMg?: number;
+	magnesiumMg?: number;
+	vitaminAMcg?: number;
+	vitaminCMg?: number;
+	vitaminDMcg?: number;
+	folateMcg?: number;
+}
+
 export interface Nutrition {
 	calories: number;
 	protein: number;
 	carbs: number;
 	fat: number;
 	fiber: number;
+	micronutrients?: Micronutrients;
 }
 
 export interface Recipe {
@@ -85,6 +97,8 @@ export interface HouseholdMember {
 	avoid: string[];
 	eatsEveryMeal: boolean;
 	enabled: boolean;
+	/** ISO date (week start) when member is excluded from the active plan. */
+	disabledForWeek: string | null;
 	isPrimary?: boolean;
 	avatarColor: string;
 }
@@ -115,6 +129,12 @@ export interface UserProfile {
 export interface PlannedMeal {
 	mealType: MealType;
 	recipeId: string;
+	/** Why this recipe was selected (AI or fallback). */
+	reason?: string;
+	/** Set during post-generation review. */
+	review?: 'liked' | 'disliked';
+	/** Embedded when AI creates a new recipe (id starts with ai-). */
+	recipe?: Recipe;
 }
 
 export interface PlannedDay {
@@ -128,9 +148,13 @@ export interface ShoppingItem {
 	ingredientId: string;
 	name: string;
 	category: IngredientCategory;
+	/** Total required for the week (household-scaled). */
 	amount: number;
 	unit: Unit;
+	/** Amount still needed after pantry deduction. */
+	amountToBuy: number;
 	inPantry: boolean;
+	fullyCoveredByPantry: boolean;
 	checked: boolean;
 }
 
