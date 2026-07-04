@@ -1,6 +1,6 @@
 <script lang="ts">
+	import { app } from '$lib/stores/app.svelte';
 	import type { ShoppingItem } from '$lib/types';
-	import { getIngredient } from '$lib/data/ingredients';
 	import { Badge } from '$lib/components/ui';
 	import IngredientPriceEditor from '$lib/components/IngredientPriceEditor.svelte';
 	import { Check } from '@lucide/svelte';
@@ -12,7 +12,7 @@
 	};
 
 	let { item, onToggle }: Props = $props();
-	const ingredient = $derived(getIngredient(item.ingredientId));
+	const ingredient = $derived(app.getIngredient(item.ingredientId));
 </script>
 
 <div class="flex items-center gap-3 py-2.5">
@@ -41,15 +41,15 @@
 		</p>
 		<div class="mt-0.5 flex items-center gap-2">
 			<span class="text-xs text-muted-foreground"
-				>{item.amount}{item.unit === 'pcs' ? ' pcs' : ' ' + item.unit}</span
+				>{item.amountToBuy}{item.unit === 'pcs' ? ' pcs' : ' ' + item.unit} to buy</span
 			>
-			{#if item.inPantry}
-				<Badge variant="success">In pantry</Badge>
+			{#if item.inPantry && item.amount > item.amountToBuy}
+				<Badge variant="success">{item.amount - item.amountToBuy}{item.unit} in pantry</Badge>
 			{/if}
 		</div>
 	</div>
 
-	{#if !item.inPantry}
-		<IngredientPriceEditor ingredientId={item.ingredientId} amount={item.amount} unit={item.unit} compact />
+	{#if item.amountToBuy > 0}
+		<IngredientPriceEditor ingredientId={item.ingredientId} amount={item.amountToBuy} unit={item.unit} compact />
 	{/if}
 </div>

@@ -1,17 +1,33 @@
 # NutriFlow
 
-A mobile-first, premium prototype of a **personal AI nutrition assistant**. NutriFlow
-automatically designs a weekly meal plan optimized for health, convenience and local
-availability, then builds a zero-waste shopping list for your whole household.
+An **AI Weekly Nutrition Planner** — not a recipe app, calorie tracker, or food log. NutriFlow
+removes the mental effort of deciding what to eat by generating an optimized week for your whole
+household, then building a zero-waste shopping list.
 
-> This is an MVP **prototype**. It runs entirely on mock JSON data — there is no backend
-> and no AI implementation yet. The "Generate Weekly Plan" action is an intentional
-> placeholder.
+> **Supabase is required.** All user data and the recipe catalog load from the database.
+> `src/lib/data/` is seed-only (used by `pnpm run seed`). There is no offline demo mode.
+
+## Backend setup (Supabase + AI)
+
+1. Create a [Supabase](https://supabase.com) project.
+2. Run both SQL migrations in [`supabase/migrations/`](supabase/migrations/) in the SQL editor.
+3. Copy [`.env.example`](.env.example) to `.env` and fill in keys.
+4. Seed the recipe catalog: `pnpm run seed`
+5. In Supabase **Authentication → URL configuration**, add redirect URLs:
+   - `http://localhost:5173/auth/callback`
+   - `https://nutriflow-two-silk.vercel.app/auth/callback`
+6. Add the same env vars in Vercel project settings.
+
+**Cost tips:** Keep `AI_MOCK=true` during daily dev (zero API cost). Set `AI_MOCK=false` only when testing real Gemini calls. Default model is `gemini-flash-latest` (override with `GEMINI_MODEL`). Get a free API key at [Google AI Studio](https://aistudio.google.com/apikey).
+
+**Dev login:** Set `DEV_AUTH=true` in `.env` for instant email sign-in (no magic link). In Supabase **Authentication → Providers → Email**, turn off **Confirm email** so new dev accounts work immediately. Sessions persist in cookies across restarts.
 
 ## Tech stack
 
 - [SvelteKit 2](https://svelte.dev/docs/kit) + [Svelte 5](https://svelte.dev/docs/svelte) (runes)
 - TypeScript
+- [Supabase](https://supabase.com) (auth, Postgres, RLS)
+- [Gemini Flash](https://ai.google.dev) invents **original recipes** per meal (not catalog picks) via `@google/genai`
 - [TailwindCSS v4](https://tailwindcss.com) (CSS-first config in `src/app.css`)
 - shadcn-style UI primitives (hand-built in `src/lib/components/ui`)
 - [`@lucide/svelte`](https://lucide.dev) icons
@@ -45,32 +61,26 @@ src/
   lib/
     components/               # MealCard, RecipeCard, WeeklyCalendar, HouseholdCard, ...
     components/ui/            # Button, Card, Badge, Input, Slider, Switch, Dialog, ...
-    data/                     # mock data: ingredients, recipes, mealPlan, household, ...
-    stores/app.svelte.ts      # global reactive app state (runes)
+    data/                     # seed-only: ingredients.ts, recipes.ts (pnpm run seed)
+    stores/app.svelte.ts      # global state + Supabase sync
     types.ts                  # shared TypeScript types
     meta.ts                   # option lists & meal-type metadata
 ```
 
-## Key features in the prototype
+## Key features
 
-- **Onboarding** — 8-step wizard collecting personal info, activity, goals, diet,
-  allergies, cuisines, kitchen setup, location and pantry staples.
-- **Household** — primary user plus members (partner, child, …) that can be enabled or
-  disabled per week. Shopping quantities scale to active members (children count as a
-  fraction of an adult portion) to avoid food waste.
-- **Dashboard** — today's meals, nutrition score ring, weekly progress, hydration tracker
-  and a live shopping-list preview.
-- **Weekly plan** — 7-day calendar with breakfast / lunch / dinner / snack and meal
-  replacement.
-- **Recipe screen** — nutrition facts, ingredients, instructions, health benefits,
-  substitutions, meal-prep tips and save-as-favorite.
-- **Shopping list** — grouped by category, pantry-aware, with per-item prices and a weekly
-  total against your budget.
-- **Pantry** — searchable add/remove/adjust of staple ingredients.
-- **Profile** — editable preferences, household management, dark mode, notifications and
-  disabled "coming soon" features (AI Coach, Blood Test, Wearables, etc.).
+- **Generate My Week** — one button for 7 days of breakfast, lunch, dinner and snacks
+- **Onboarding** — collects profile data needed for accurate meal planning
+- **Household** — plan and scale meals for all members; include or exclude members per week
+- **Dashboard** — weekly nutrition overview (protein, fiber, micronutrients), shared ingredients
+- **Weekly plan** — meal cards with AI selection reasons and safe meal replacement
+- **Shopping list** — household-scaled quantities, pantry deduction, categories, estimated cost
+- **AI planning** — Gemini ranks recipes from the catalog (ingredient reuse, budget, health goals)
+- **Recipe screen** — nutrition facts, scaled ingredients, instructions, health benefits
+- **Pantry** — searchable add/remove/adjust of staple ingredients
+- **Profile** — editable preferences, household management, dark mode, notifications
 
-## Mock data
+## Data model
 
-All data lives in `src/lib/data/`: 50+ ingredients, 10 fully-detailed recipes, a 7-day
-meal plan, an example household, derived shopping list and nutrition values.
+- **Catalog** (shared): `ingredients`, `recipes` tables — seeded via `pnpm run seed`
+- **Per user**: `profiles`, `household_members`, `pantry_items`, `meal_plans`, `favorites`, `user_ingredient_prices`

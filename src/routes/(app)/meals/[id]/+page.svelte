@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { getRecipe } from '$lib/data/recipes';
 	import { app } from '$lib/stores/app.svelte';
 	import RecipeImage from '$lib/components/RecipeImage.svelte';
 	import IngredientRow from '$lib/components/IngredientRow.svelte';
@@ -21,9 +20,11 @@
 	} from '@lucide/svelte';
 	import { cn } from '$lib/utils';
 
-	const recipe = $derived(getRecipe(page.params.id ?? ''));
+	const recipe = $derived(app.getRecipe(page.params.id ?? ''));
 	const isFav = $derived(recipe ? app.isFavorite(recipe.id) : false);
 	const totalTime = $derived(recipe ? recipe.prepTime + recipe.cookTime : 0);
+	const scaledIngredients = $derived(recipe ? app.scaledIngredients(recipe, recipe.mealType) : []);
+	const serveLabel = $derived(app.activePeopleLabel);
 </script>
 
 {#if recipe}
@@ -82,8 +83,8 @@
 				</div>
 				<div class="flex flex-col items-center rounded-2xl bg-secondary py-3">
 					<Users class="h-5 w-5 text-primary" />
-					<span class="mt-1 text-sm font-semibold text-foreground">{recipe.baseServings}</span>
-					<span class="text-[11px] text-muted-foreground">Servings</span>
+					<span class="mt-1 text-sm font-semibold text-foreground">{serveLabel}</span>
+					<span class="text-[11px] text-muted-foreground">Household</span>
 				</div>
 			</div>
 
@@ -103,13 +104,13 @@
 			<section class="mt-7">
 				<div class="flex items-center justify-between">
 					<h2 class="text-lg font-semibold text-foreground">Ingredients</h2>
-					<span class="text-xs text-muted-foreground">for {recipe.baseServings} servings</span>
+					<span class="text-xs text-muted-foreground">Scaled for {serveLabel}</span>
 				</div>
 				<Card class="mt-3 divide-y divide-border/70 py-0">
-					{#each recipe.ingredients as ing (ing.ingredientId)}
+					{#each scaledIngredients as ing (ing.ingredientId)}
 						<IngredientRow
 							ingredientId={ing.ingredientId}
-							amount={Math.round(ing.amountPerServing * recipe.baseServings)}
+							amount={Math.round(ing.amountPerServing * 10) / 10}
 							unit={ing.unit}
 						/>
 					{/each}
